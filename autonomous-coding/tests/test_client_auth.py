@@ -56,6 +56,41 @@ def test_validate_auth_configuration_auto_accepts_api_key(monkeypatch, tmp_path:
     client.validate_auth_configuration("auto")
 
 
+def test_validate_auth_configuration_openai_api_key_requires_env(monkeypatch) -> None:
+    monkeypatch.delenv("CODEX_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="CODEX_API_KEY or OPENAI_API_KEY"):
+        client.validate_auth_configuration("api_key", provider="openai")
+
+
+def test_validate_auth_configuration_openai_cli_requires_cached_login(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", lambda: home)
+
+    with pytest.raises(ValueError, match="Codex CLI credentials were not detected"):
+        client.validate_auth_configuration("cli", provider="openai")
+
+
+def test_validate_auth_configuration_openai_cli_accepts_auth_cache(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    (home / ".codex").mkdir(parents=True)
+    (home / ".codex" / "auth.json").write_text('{"access_token": "ok"}')
+    monkeypatch.setattr(Path, "home", lambda: home)
+
+    client.validate_auth_configuration("cli", provider="openai")
+
+
+def test_validate_auth_configuration_openai_auto_accepts_codex_api_key(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("CODEX_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    client.validate_auth_configuration("auto", provider="openai")
+
+
 def test_browser_config_prefers_playwright_headless_by_default() -> None:
     tools, servers = client._browser_config()
     assert tools == client.PLAYWRIGHT_TOOLS

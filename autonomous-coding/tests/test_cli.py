@@ -11,6 +11,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
     assert args.mode == "v3_1"
     assert args.max_rounds == 3
     assert args.target_tests is None
+    assert args.provider == "claude"
     assert args.auth_mode == "api_key"
     assert args.llm_contract_review is False
 
@@ -41,6 +42,12 @@ def test_parse_args_auth_mode_cli(monkeypatch) -> None:
     monkeypatch.setattr("sys.argv", ["prog", "--auth-mode", "cli"])
     args = cli.parse_args()
     assert args.auth_mode == "cli"
+
+
+def test_parse_args_provider_openai(monkeypatch) -> None:
+    monkeypatch.setattr("sys.argv", ["prog", "--provider", "openai"])
+    args = cli.parse_args()
+    assert args.provider == "openai"
 
 
 def test_normalize_project_dir_handles_dot_prefix() -> None:
@@ -103,3 +110,22 @@ def test_main_rejects_missing_cli_credentials(monkeypatch, capsys) -> None:
     cli.main()
     output = capsys.readouterr().out
     assert "Claude CLI credentials were not detected" in output
+
+
+def test_main_rejects_missing_openai_cli_credentials(monkeypatch, capsys, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["prog", "--provider", "openai", "--auth-mode", "cli", "--project-dir", "./tmp-project"],
+    )
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.delenv("CODEX_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    async def fake_run_v3_1(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(cli, "_run_v3_1", fake_run_v3_1)
+    cli.main()
+    output = capsys.readouterr().out
+    assert "Codex CLI credentials were not detected" in output
